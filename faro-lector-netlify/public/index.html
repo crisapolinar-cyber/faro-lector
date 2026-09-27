@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Faro Lector: comprensión lectora con inteligencia artificial. Elaborado y diseñado por Ing. Cristóbal Apolinar.">
+<meta name="author" content="Ing. Cristóbal Apolinar">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Faro Lector</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Onest:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;1,7..72,400&family=JetBrains+Mono:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+
+
+<header class="appbar">
+  <div class="wrap">
+    <button class="brand" id="brand" aria-label="Faro Lector, inicio">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M13 9h6l2 19H11z" fill="var(--sea)"/><path d="M12 13h8M11.6 18h8.8M11.1 23h9.8" stroke="var(--bg)" stroke-width="1.6"/><rect x="12.5" y="4" width="7" height="5" rx="1" fill="var(--lamp)"/><path d="M16 1.5v2.5" stroke="var(--sea)" stroke-width="1.6"/><path d="M20 6.5 31 3v7z" fill="var(--lamp)" opacity=".45"/></svg>
+      Faro Lector
+    </button>
+    <nav class="stepper" id="stepper" aria-label="Progreso">
+      <button class="step" data-s="diag"><b>1</b>Mi diagnóstico</button>
+      <button class="step" data-s="lib"><b>2</b>Lectura</button>
+      <button class="step" data-s="quiz"><b>3</b>Preguntas</button>
+      <button class="step" data-s="res"><b>4</b>Resultados</button>
+    </nav>
+    <span class="pill" id="aiPill" title="Estado de la inteligencia artificial"><i></i><span>Conectando…</span></span>
+    <button class="userchip" id="userChip" hidden aria-haspopup="menu"><span class="av" id="userAv">?</span><span id="userName"></span></button>
+  </div>
+</header>
+<div class="menu" id="menu" hidden role="menu"></div>
+
+<main class="wrap">
+
+<section class="screen" id="s-login">
+  <div class="demo-banner" id="demoBanner" hidden>🧪 <span><b>Modo demostración:</b> los datos se guardan solo en este navegador. Código de instalación del administrador: <code>demo-admin</code>. Para usarlo con tus alumnos, publícalo en Netlify.</span></div>
+  <div class="login">
+    <div class="night">
+      <div class="stars"></div>
+      <div class="tagrow"><span>Secundaria General N.º 20</span><span>3.er grado</span><span>Tecnología · Informática</span></div>
+      <div style="display:grid;gap:14px">
+        <h1>Lee con luz <em>propia.</em></h1>
+        <p>Tu lector personal con inteligencia artificial. Parte de tu diagnóstico, te lee en voz alta, te hace las preguntas que necesitas y te muestra cuánto avanzaste.</p>
+      </div>
+      <div id="loginQuote" class="night-quote"></div>
+      <div class="beamwrap" aria-hidden="true"><canvas id="beam" width="600" height="600" style="position:absolute;right:0;bottom:0;width:100%;height:100%;object-fit:cover;object-position:right bottom"></canvas></div>
+    </div>
+    <div class="loginform">
+      <div class="head" style="gap:4px"><span class="eyebrow">Acceso seguro</span><h3 style="font-size:24px">¿Quién va a leer hoy?</h3></div>
+      <div id="lgGate" hidden><form id="gateForm" class="miniform"><div class="callout">🏫 <span>Escribe el <b>código de acceso de tu escuela</b>. Te lo da tu profesor.</span></div><div class="field"><label for="gateIn">Código de la escuela</label><input id="gateIn" autocomplete="off" spellcheck="false"></div><button class="btn lg lamp">Continuar →</button></form></div>
+      <div id="lgPick" style="display:grid;gap:16px">
+        <div class="field"><label id="lblGroup">1. Elige tu grupo</label><div class="grouppick" id="groupPick" role="group" aria-labelledby="lblGroup"></div></div>
+        <div class="field" id="fKnown" hidden><label for="selName">2. Busca y elige tu nombre</label>
+          <input id="nameFilter" type="search" placeholder="Escribe para filtrar…" aria-label="Filtrar nombres">
+          <select id="selName" size="6" style="padding:6px"></select></div>
+        <button class="btn lg lamp" id="lgNext" type="button" disabled>Continuar →</button>
+      </div>
+      <div id="lgPass" hidden style="display:grid;gap:14px"><button type="button" class="linkbtn back" data-do="lgBack">← Elegir otro nombre</button><div class="lgwho" id="lgWho"></div><div id="lgPassBody"></div></div>
+      <div id="lgNew" hidden style="display:grid;gap:14px"><button type="button" class="linkbtn back" data-do="lgBack">← Volver a la lista</button><div id="lgNewBody"></div></div>
+      <p class="lgmsg" id="lgMsg" aria-live="polite"></p>
+      <div class="lgfoot"><span>🔒 Contraseñas cifradas · sesiones protegidas</span><button type="button" class="linkbtn" data-do="adminLogin">🛡️ Administrador</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIAGNÓSTICO ============ -->
+<section class="screen" id="s-diag" hidden></section>
+
+<!-- ============ BIBLIOTECA ============ -->
+<section class="screen" id="s-lib" hidden>
+  <div class="head"><span class="eyebrow">Paso 2 · Elige qué leer</span><h2>Tu biblioteca</h2><p>Elige un texto de la colección o sube el tuyo en PDF, Word (.docx) o texto (.txt). Faro Lector te lo lee en voz alta y después Claude te hace preguntas sobre él.</p></div>
+  <div class="books" id="books"></div>
+  <div class="grid2">
+    <label class="drop" id="drop" for="fileIn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      <b>Sube tu propio texto</b>
+      <span class="hint">Arrastra aquí un archivo o haz clic · PDF, DOCX o TXT</span>
+      <input type="file" id="fileIn" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" hidden>
+      <span id="fileMsg" class="hint" aria-live="polite"></span>
+    </label>
+    <div class="card">
+      <details class="paste" id="pasteBox"><summary>O pega un texto directamente</summary>
+        <div style="display:grid;gap:10px;margin-top:12px">
+          <div class="field"><label for="pasteTitle">Título</label><input id="pasteTitle" placeholder="Título del texto"></div>
+          <div class="field"><label for="pasteText">Texto</label><textarea id="pasteText" rows="7" placeholder="Pega aquí el texto que quieres leer…"></textarea></div>
+          <button class="btn" id="pasteGo" type="button">Abrir en el lector</button>
+        </div>
+      </details>
+      <p class="hint">Consejo: los textos de 300 a 2,000 palabras dan las mejores preguntas. Si subes un libro completo, Claude usa los primeros capítulos.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LECTOR ============ -->
+<section class="screen" id="s-read" hidden>
+  <div class="reader">
+    <article class="paper" id="paper">
+      <div class="ttl"><span class="eyebrow" id="rKind"></span><h2 id="rTitle"></h2><span id="rMeta"></span></div>
+      <div class="text" id="rText" lang="es"></div>
+      <div class="ruler" id="ruler" hidden></div>
+    </article>
+    <aside class="side">
+      <div class="card">
+        <h4><span class="orb sm" id="vOrb"></span> Voz narradora</h4>
+        <div class="vctrl">
+          <button class="icon-btn" id="vPrev" aria-label="Oración anterior"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+          <button class="icon-btn big" id="vPlay" aria-label="Reproducir"><svg viewBox="0 0 24 24" fill="currentColor" id="vPlayIc"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="icon-btn" id="vNext" aria-label="Oración siguiente"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18V6l8.5 6z"/></svg></button>
+          <button class="icon-btn" id="vStop" aria-label="Detener"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+        </div>
+        <div class="range"><span>Velocidad</span><input type="range" id="vRate" min="0.6" max="1.5" step="0.05" value="0.95" aria-label="Velocidad de lectura"><b id="vRateV" class="num">0.95×</b></div>
+        <div class="field"><label for="vVoice">Voz</label><select id="vVoice"></select></div>
+        <p class="hint" id="vHint">Toca cualquier oración para que la voz empiece a leer desde ahí.</p>
+      </div>
+      <div class="card">
+        <h4>👁️ Cómo quieres leer</h4>
+        <div class="toolrow"><span>Tamaño</span><div class="seg" id="fsSeg"><button data-v="17px">A−</button><button data-v="20px" aria-pressed="true">A</button><button data-v="24px">A+</button><button data-v="28px">A++</button></div></div>
+        <div class="toolrow"><span>Papel</span><div class="seg" id="skinSeg"><button data-v="" aria-pressed="true">Claro</button><button data-v="sepia">Sepia</button><button data-v="noche">Noche</button></div></div>
+        <div class="toolrow"><label><input type="checkbox" id="optRuler"> Regla de lectura</label><label><input type="checkbox" id="optDys"> Letra espaciada</label></div>
+      </div>
+      <div class="card">
+        <h4>⏱️ Mi velocidad lectora</h4>
+        <div class="timer num" id="tClock">0:00</div>
+        <button class="btn ghost sm" id="tBtn">Empezar a leer en silencio</button>
+        <p class="hint" id="tMsg">Mide cuántas palabras lees por minuto. La referencia de la SEP para 3.º de secundaria es de 165 a 170 palabras por minuto.</p>
+      </div>
+      <div class="card">
+        <h4><span class="orb sm"></span> Pregúntale a Claude</h4>
+        <p class="hint">Selecciona una palabra o frase del texto y toca «Explícamelo», o escribe tu duda aquí.</p>
+        <div class="field"><textarea id="askBox" rows="2" placeholder="¿Qué significa…? ¿Por qué el personaje…?" style="min-height:60px"></textarea></div>
+        <button class="btn soft sm" id="askBtn">Preguntar</button>
+        <div class="answer" id="askOut" aria-live="polite"></div>
+      </div>
+    </aside>
+  </div>
+  <div class="bottombar"><div class="inner"><span id="readStat">Lee con calma. Cuando termines:</span><button class="btn lamp" id="doneRead">Generar mis preguntas →</button></div></div>
+  <button class="btn sm float-ask" id="floatAsk" hidden>✨ Explícamelo</button>
+  <div class="pop" id="pop" hidden></div>
+</section>
+
+<!-- ============ QUIZ ============ -->
+<section class="screen" id="s-quiz" hidden></section>
+
+<!-- ============ RESULTADOS ============ -->
+<section class="screen" id="s-res" hidden></section>
+
+<!-- ============ HISTORIAL ============ -->
+<section class="screen" id="s-path" hidden></section>
+
+<section class="screen" id="s-admin" hidden></section>
+
+<footer class="sig" id="sig"></footer>
+</main>
+
+<div class="modal" id="modal" hidden><div class="box" id="modalBox" role="dialog" aria-modal="true"></div></div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden></aside>
+<div class="toast" id="toast" hidden role="status"></div>
+<canvas id="confetti" hidden></canvas>
+<div id="printArea"></div>
+
+</body>
+</html>
