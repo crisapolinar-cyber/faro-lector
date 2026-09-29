@@ -45,17 +45,24 @@ const dayKey = t => {const d=new Date(t);return `${d.getFullYear()}-${String(d.g
 const API = {
   token: null, role: null, demo: false, core: null, cfg: null,
   async init(){
-    try{
-      const r = await fetch('/api/config',{cache:'no-store',headers:{accept:'application/json'}});
-      const c = await r.json();
-      if(!r.ok && c && c.error==='cfg') throw Object.assign(new Error(c.message),{cfg:true});
-      if(!c || typeof c.school!=='string') throw new Error('sin servidor');
-      this.cfg=c; return c;
-    }catch(e){
-      if(e && e.cfg) throw e;
-      if(window.FaroCore && window.FARO_DEMO){ this.demo=true; this.core=await makeDemoCore(); const r=await this.core.handle({method:'GET',path:'/config',headers:{},body:null,ip:'demo'}); this.cfg=r.body; return this.cfg; }
-      throw new Error('No se pudo conectar con el servidor de Faro Lector. Revisa tu conexión a internet.');
+    let last='';
+    for(let i=0;i<4;i++){
+      if(i) await new Promise(r=>setTimeout(r,[0,800,2000,4000][i]));
+      try{
+        const r = await fetch('/api/config',{cache:'no-store',headers:{accept:'application/json'}});
+        let c=null; try{ c=await r.json(); }catch{}
+        if(c && c.error==='cfg') throw Object.assign(new Error(c.message),{cfg:true});
+        if(r.ok && c && typeof c.school==='string'){ this.cfg=c; return c; }
+        last = r.status===404 ? 'el servidor no se encontró (404)' : `el servidor respondió con el código ${r.status}`;
+        if(r.status===404 && window.FaroCore && window.FARO_DEMO) break;
+      }catch(e){
+        if(e && e.cfg) throw e;
+        last='no hubo respuesta de la red';
+        if(window.FaroCore && window.FARO_DEMO) break;
+      }
     }
+    if(window.FaroCore && window.FARO_DEMO){ this.demo=true; this.core=await makeDemoCore(); const r=await this.core.handle({method:'GET',path:'/config',headers:{},body:null,ip:'demo'}); this.cfg=r.body; return this.cfg; }
+    throw new Error(`No se pudo conectar con el servidor de Faro Lector: ${last}. Toca «Reintentar»; si continúa, avisa a tu profesor.`);
   },
   setToken(t,role){ this.token=t; this.role=role; sess.set('tok',t); sess.set('role',role); },
   clear(){ this.token=null; this.role=null; sess.set('tok',null); sess.set('role',null); },
@@ -66,10 +73,18 @@ const API = {
     let status, data;
     if(this.demo){ const r=await this.core.handle({method,path,body:body??null,headers,ip:'demo'}); status=r.status; data=r.body; }
     else{
-      let r;
-      try{ r=await fetch('/api'+path,{method,headers,body:method==='GET'?undefined:JSON.stringify(body||{}),cache:'no-store',credentials:'omit'}); }
-      catch{ throw {code:'network',message:'Sin conexión con el servidor. Revisa tu internet.'}; }
+      // Reintento automático ante fallas momentáneas de red o del servidor (no en operaciones que no deben repetirse)
+      const safe = !/^\/(me\/session|setup|signup|admin\/users|admin\/codes|admin\/settings|admin\/password|me\/password)$/.test(path);
+      let r=null;
+      for(let i=0;i<(safe?3:1);i++){
+        if(i) await new Promise(res=>setTimeout(res,i===1?700:1800));
+        try{ r=await fetch('/api'+path,{method,headers,body:method==='GET'?undefined:JSON.stringify(body||{}),cache:'no-store',credentials:'omit'}); }
+        catch{ r=null; continue; }
+        if(r.status<500 || r.status===501) break;
+      }
+      if(!r) throw {code:'network',message:'Sin conexión con el servidor. Revisa tu internet y vuelve a intentar.'};
       status=r.status; try{ data=await r.json(); }catch{ data={}; }
+      if(status>=500 && !data.message) data.message=`El servidor tuvo una falla momentánea (código ${status}). Espera unos segundos y vuelve a intentar.`;
     }
     if(status===401 && data.error==='auth'){ sessionExpired(data.message); }
     if(status>=400) throw Object.assign({status},data,{code:data.error||'error',message:data.message||('Error '+status)});
@@ -115,7 +130,7 @@ const AI = {
       const t0=Date.now();
       while(Date.now()-t0<300e3){
         if(stop) throw {code:'cancelled'};
-        await new Promise(res=>setTimeout(res,Date.now()-t0<20e3?1500:2500));
+        await new Promise(res=>setTimeout(res,Date.now()-t0<20e3?2500:4000));
         const q=await API.call('/ai/poll',{id:r.job});
         if(q.status==='done') return q.text||'';
       }
@@ -1302,7 +1317,7 @@ function crestSVG(size=96){
 }
 function renderSignature(){
   $('#sig').innerHTML=`<div class="sig-card"><div class="sig-crest">${crestSVG(92)}</div>
-   <div class="sig-txt"><span class="sig-k">ELABORADO Y DISEÑADO POR</span><b class="sig-n">Ing. Cristóbal Apolinar</b><span class="sig-s">Faro Lector · ${esc(API.cfg?API.cfg.school:'Secundaria General N.º 20')} · Tecnología con énfasis en informática · 2026</span><span class="sig-s dim">Inteligencia artificial: Claude · Acceso cifrado y protegido</span></div>
+   <div class="sig-txt"><span class="sig-k">ELABORADO Y DISEÑADO POR</span><b class="sig-n">Ing. Cristóbal Apolinar</b><span class="sig-s">Faro Lector · ${esc(API.cfg?API.cfg.school:'Secundaria General N.º 20')} · Tecnología con énfasis en informática · 2026</span><span class="sig-s dim">Inteligencia artificial: Claude · Acceso cifrado y protegido · v2.1</span></div>
    <span class="sig-scan" aria-hidden="true"></span></div>`;
 }
 
@@ -1589,7 +1604,7 @@ ACT.admExport=()=>{
 (async function init(){
   renderLibrary();
   try{ await API.init(); }
-  catch(e){ $('#lgPick').hidden=true; lgMsg(e.message,true); renderSignature(); show('login'); return; }
+  catch(e){ $('#lgPick').hidden=true; lgMsg(e.message,true); $('#lgMsg').insertAdjacentHTML('afterend','<button type="button" class="btn lamp" id="retryInit">↻ Reintentar</button>'); $('#retryInit').onclick=()=>location.reload(); renderSignature(); show('login'); return; }
   updatePill(); renderSignature();
   $('#loginQuote').innerHTML=quoteHTML(quoteOfDay(),'qodLogin');
   if(API.demo){ const b=$('#demoBanner'); b.hidden=false; }

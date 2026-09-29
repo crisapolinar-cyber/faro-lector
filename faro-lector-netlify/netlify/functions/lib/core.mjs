@@ -86,6 +86,13 @@ function createApi(opts) {
     a.push({ t: now(), type, d: clean(detail, 200) });
     await store.set('audit', a.slice(-400));
   }
+  const MEM = new Map();
+  function limitMem(key, max, win) {
+    const t = now(); let v = MEM.get(key);
+    if (!v || v.reset <= t) { v = { n: 0, reset: t + win }; MEM.set(key, v); }
+    v.n++; if (MEM.size > 5000) { for (const [k, x] of MEM) if (x.reset <= t) MEM.delete(k); }
+    return v.n <= max;
+  }
   async function limit(key, max, win) {
     const k = 'rl/' + key; const t = now(); const r = await store.get(k);
     const v = r && r.reset > t ? r : { n: 0, reset: t + win };
@@ -150,14 +157,14 @@ function createApi(opts) {
     }
 
     if (method === 'POST' && path === '/roster') {
-      if (!(await limit('roster:' + ipk, 90, 3600e3))) return E(429, 'rate', 'Demasiadas solicitudes. Espera unos minutos.');
+      if (!limitMem('roster:' + ipk, 3000, 3600e3)) return E(429, 'rate', 'Demasiadas solicitudes. Espera unos minutos.');
       if (!(await gateOk(st, body.gate))) return E(403, 'gate', 'El código de acceso de la escuela no es correcto.');
       const ix = await index();
       return J(200, { students: Object.values(ix.users).map(publicUser) });
     }
 
     if (method === 'POST' && path === '/login') {
-      if (!(await limit('login:' + ipk, 40, 15 * 60e3))) return E(429, 'rate', 'Demasiados intentos desde este equipo. Espera 15 minutos.');
+      if (!limitMem('login:' + ipk, 1200, 15 * 60e3)) return E(429, 'rate', 'Demasiados intentos desde esta red. Espera unos minutos.');
       if (!(await gateOk(st, body.gate))) return E(403, 'gate', 'El código de acceso de la escuela no es correcto.');
       const id = clean(body.id, 20); const ix = await index(); const u = ix.users[id];
       if (!u) return E(404, 'nouser', 'No encontré a ese estudiante.');
@@ -204,7 +211,7 @@ function createApi(opts) {
     if (method === 'POST' && path === '/signup') {
       if (!st.selfSignup) return E(403, 'closed', 'El registro de nuevos estudiantes está cerrado. Pide a tu profesor que te agregue.');
       if (!(await gateOk(st, body.gate))) return E(403, 'gate', 'El código de acceso de la escuela no es correcto.');
-      if (!(await limit('signup:' + ipk, 6, 3600e3))) return E(429, 'rate', 'Demasiados registros desde este equipo. Intenta más tarde.');
+      if (!limitMem('signup:' + ipk, 60, 3600e3)) return E(429, 'rate', 'Demasiados registros desde este equipo. Intenta más tarde.');
       const name = clean(body.name, 80), g = clean(body.g, 14).toUpperCase();
       if (name.length < 5 || !/\p{L}{2,}.*\s+.*\p{L}{2,}/u.test(name)) return E(400, 'name', 'Escribe tu nombre completo (nombre y apellidos).');
       if (!g) return E(400, 'group', 'Escribe tu grupo.');
@@ -266,7 +273,7 @@ function createApi(opts) {
 
     /* ---------- administrador ---------- */
     if (method === 'POST' && path === '/admin/login') {
-      if (!(await limit('adm:' + ipk, 12, 15 * 60e3))) return E(429, 'rate', 'Demasiados intentos. Espera 15 minutos.');
+      if (!limitMem('adm:' + ipk, 30, 15 * 60e3)) return E(429, 'rate', 'Demasiados intentos. Espera 15 minutos.');
       const a = await store.get('admin');
       if (!a) {
         if (!env.ADMIN_SETUP_CODE) return E(503, 'cfg', 'Falta configurar ADMIN_SETUP_CODE en Netlify.');
@@ -391,6 +398,7 @@ function createApi(opts) {
         const headers = {}; for (const k in (req.headers || {})) headers[k.toLowerCase()] = req.headers[k];
         return await route(req.method, req.path, body, headers, ipk);
       } catch (e) {
+        try { console.error('[faro] error en', req && req.path, e && (e.stack || e.message || e)); } catch {}
         if (e && e.cfg) return E(500, 'cfg', e.message);
         return E(500, 'server', 'Ocurrió un error en el servidor.');
       }

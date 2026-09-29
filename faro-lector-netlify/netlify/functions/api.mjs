@@ -60,10 +60,17 @@ export default async (req, context) => {
   } else if (req.method !== "GET") {
     return json(405, { error: "method", message: "Método no permitido." });
   }
-  const headers = Object.fromEntries(req.headers);
-  const ip = (context && context.ip) || req.headers.get("x-nf-client-connection-ip") || "0.0.0.0";
-  const r = await getApi().handle({ method: req.method, path, body, headers, ip });
-  return json(r.status, r.body);
+  try {
+    const headers = Object.fromEntries(req.headers);
+    const ip = (context && context.ip) || req.headers.get("x-nf-client-connection-ip") || "0.0.0.0";
+    const r = await getApi().handle({ method: req.method, path, body, headers, ip });
+    if (r.status >= 500) console.error("[faro] respuesta", r.status, path, r.body && r.body.error);
+    return json(r.status, r.body);
+  } catch (e) {
+    console.error("[faro] falla no controlada en", path, e && (e.stack || e.message || e));
+    api = null; // reinicia la conexión con el almacenamiento en la siguiente solicitud
+    return json(500, { error: "server", message: "El servidor tuvo una falla momentánea. Vuelve a intentar." });
+  }
 };
 
 export const config = { path: "/api/*" };
